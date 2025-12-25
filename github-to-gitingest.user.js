@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         GitHub to Gitingest Button
 // @namespace    https://github.com/abd3lraouf
-// @version      1.1
-// @description  Adds a Gitingest button to GitHub repository pages (works on all repo paths)
+// @version      2.0
+// @description  Adds a premium Gitingest button to GitHub repository pages
 // @author       abd3lraouf
 // @license      MIT
 // @match        https://github.com/*
@@ -17,16 +17,144 @@
 (function() {
     'use strict';
 
-    const BUTTON_ID = 'gitingest-button';
     const CONTAINER_ID = 'gitingest-container';
 
-    // Brand colors
-    const COLORS = {
-        primary: '#f97316',      // Orange
-        primaryHover: '#ea580c', // Darker orange
-        shadow: '#c2410c',       // Dark orange for shadow
-        text: '#ffffff',         // White text
-    };
+    /**
+     * Inject CSS styles for the premium button
+     */
+    function injectStyles() {
+        if (document.getElementById('gitingest-styles')) return;
+
+        const style = document.createElement('style');
+        style.id = 'gitingest-styles';
+        style.textContent = `
+            @keyframes gitingest-shimmer {
+                0% { transform: translateX(-100%) rotate(15deg); }
+                100% { transform: translateX(200%) rotate(15deg); }
+            }
+
+            @keyframes gitingest-glow-pulse {
+                0%, 100% { box-shadow: 0 0 8px rgba(251, 146, 60, 0.4), 0 0 20px rgba(251, 146, 60, 0.2); }
+                50% { box-shadow: 0 0 12px rgba(251, 146, 60, 0.6), 0 0 30px rgba(251, 146, 60, 0.3); }
+            }
+
+            #${CONTAINER_ID} {
+                position: relative;
+                display: inline-flex;
+                align-items: center;
+                margin-left: 8px;
+                vertical-align: middle;
+            }
+
+            #${CONTAINER_ID} .gitingest-btn {
+                position: relative;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 5px 14px;
+                height: 28px;
+                background: linear-gradient(135deg, #fb923c 0%, #f97316 50%, #ea580c 100%);
+                color: #fff;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                text-decoration: none;
+                font-size: 12px;
+                font-weight: 600;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                box-shadow:
+                    0 1px 2px rgba(0, 0, 0, 0.1),
+                    0 2px 8px rgba(249, 115, 22, 0.3),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+                    inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+                overflow: hidden;
+                text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+            }
+
+            /* Shimmer effect overlay */
+            #${CONTAINER_ID} .gitingest-btn::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 50%;
+                height: 100%;
+                background: linear-gradient(
+                    90deg,
+                    transparent,
+                    rgba(255, 255, 255, 0.3),
+                    transparent
+                );
+                transform: translateX(-100%) rotate(15deg);
+            }
+
+            /* Hover state */
+            #${CONTAINER_ID} .gitingest-btn:hover {
+                background: linear-gradient(135deg, #fdba74 0%, #fb923c 50%, #f97316 100%);
+                transform: translateY(-2px) scale(1.02);
+                box-shadow:
+                    0 4px 12px rgba(249, 115, 22, 0.4),
+                    0 8px 24px rgba(249, 115, 22, 0.2),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+                    inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+            }
+
+            /* Shimmer animation on hover */
+            #${CONTAINER_ID} .gitingest-btn:hover::before {
+                animation: gitingest-shimmer 0.8s ease-in-out;
+            }
+
+            /* Active/pressed state */
+            #${CONTAINER_ID} .gitingest-btn:active {
+                transform: translateY(0) scale(0.98);
+                box-shadow:
+                    0 1px 4px rgba(249, 115, 22, 0.3),
+                    inset 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
+
+            /* Icon styling */
+            #${CONTAINER_ID} .gitingest-icon {
+                width: 14px;
+                height: 14px;
+                flex-shrink: 0;
+                filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2));
+            }
+
+            /* Premium badge dot */
+            #${CONTAINER_ID} .gitingest-btn::after {
+                content: '';
+                position: absolute;
+                top: 4px;
+                right: 4px;
+                width: 4px;
+                height: 4px;
+                background: rgba(255, 255, 255, 0.8);
+                border-radius: 50%;
+                opacity: 0.8;
+            }
+
+            /* Dark mode adjustments */
+            [data-color-mode="dark"] #${CONTAINER_ID} .gitingest-btn,
+            .dark #${CONTAINER_ID} .gitingest-btn {
+                box-shadow:
+                    0 1px 2px rgba(0, 0, 0, 0.3),
+                    0 2px 12px rgba(249, 115, 22, 0.4),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+                    inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+            }
+
+            [data-color-mode="dark"] #${CONTAINER_ID} .gitingest-btn:hover,
+            .dark #${CONTAINER_ID} .gitingest-btn:hover {
+                box-shadow:
+                    0 4px 16px rgba(249, 115, 22, 0.5),
+                    0 8px 32px rgba(249, 115, 22, 0.3),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+                    inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+            }
+        `;
+        document.head.appendChild(style);
+    }
 
     /**
      * Check if current page is a repository page
@@ -51,81 +179,41 @@
     }
 
     /**
-     * Create the distinctive 3D-style Gitingest button
+     * Create the premium Gitingest button
      */
     function createButton() {
         if (document.getElementById(CONTAINER_ID)) return null;
 
-        // Container for 3D effect
         const container = document.createElement('div');
         container.id = CONTAINER_ID;
-        Object.assign(container.style, {
-            position: 'relative',
-            display: 'inline-flex',
-            alignItems: 'center',
-            marginLeft: '8px',
-            verticalAlign: 'middle',
-        });
 
-        // Shadow layer (creates 3D depth)
-        const shadow = document.createElement('div');
-        Object.assign(shadow.style, {
-            position: 'absolute',
-            width: '100%',
-            height: '100%',
-            backgroundColor: COLORS.shadow,
-            borderRadius: '6px',
-            top: '2px',
-            left: '2px',
-        });
-
-        // Main button
         const button = document.createElement('a');
-        button.id = BUTTON_ID;
+        button.className = 'gitingest-btn';
         button.href = `https://gitingest.com${getRepoPath()}`;
         button.target = '_blank';
         button.rel = 'noopener noreferrer';
         button.title = 'Open in Gitingest - Convert repo to LLM-friendly text';
-        button.textContent = 'Gitingest';
 
-        Object.assign(button.style, {
-            position: 'relative',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '4px 12px',
-            height: '28px',
-            backgroundColor: COLORS.primary,
-            color: COLORS.text,
-            borderRadius: '6px',
-            cursor: 'pointer',
-            textDecoration: 'none',
-            fontSize: '12px',
-            fontWeight: '600',
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif',
-            transition: 'transform 0.1s ease-out, background-color 0.1s ease-out',
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)',
-        });
+        // Create sparkle/digest icon
+        const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        icon.setAttribute('class', 'gitingest-icon');
+        icon.setAttribute('viewBox', '0 0 24 24');
+        icon.setAttribute('fill', 'none');
+        icon.setAttribute('stroke', 'currentColor');
+        icon.setAttribute('stroke-width', '2');
+        icon.setAttribute('stroke-linecap', 'round');
+        icon.setAttribute('stroke-linejoin', 'round');
 
-        // Hover effects
-        container.addEventListener('mouseenter', () => {
-            button.style.transform = 'translate(-1px, -1px)';
-            button.style.backgroundColor = COLORS.primaryHover;
-        });
-        container.addEventListener('mouseleave', () => {
-            button.style.transform = 'translate(0, 0)';
-            button.style.backgroundColor = COLORS.primary;
-        });
+        // Sparkles/magic icon path
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', 'M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3zM5 19l1 3 1-3 3-1-3-1-1-3-1 3-3 1 3 1zM19 13l.5 1.5 1.5.5-1.5.5-.5 1.5-.5-1.5-1.5-.5 1.5-.5.5-1.5z');
+        icon.appendChild(path);
 
-        // Active/click effect
-        button.addEventListener('mousedown', () => {
-            button.style.transform = 'translate(1px, 1px)';
-        });
-        button.addEventListener('mouseup', () => {
-            button.style.transform = 'translate(-1px, -1px)';
-        });
+        const text = document.createElement('span');
+        text.textContent = 'Gitingest';
 
-        container.appendChild(shadow);
+        button.appendChild(icon);
+        button.appendChild(text);
         container.appendChild(button);
 
         return container;
@@ -138,10 +226,11 @@
         if (!isRepoPage()) return;
         if (document.getElementById(CONTAINER_ID)) return;
 
+        injectStyles();
         const button = createButton();
         if (!button) return;
 
-        // Strategy 1: Main repo page - next to repo visibility label (Public/Private)
+        // Strategy 1: Main repo page - next to repo visibility label
         const repoTitleComponent = document.querySelector('#repo-title-component');
         if (repoTitleComponent) {
             const visibilityLabel = repoTitleComponent.querySelector('.Label');
@@ -149,7 +238,6 @@
                 visibilityLabel.parentNode.insertBefore(button, visibilityLabel.nextSibling);
                 return;
             }
-            // If no label, append to title component
             repoTitleComponent.appendChild(button);
             return;
         }
@@ -173,7 +261,7 @@
             return;
         }
 
-        // Strategy 4: New repo layout - action buttons area
+        // Strategy 4: New repo layout
         const actionsList = document.querySelector('ul.pagehead-actions');
         if (actionsList) {
             const li = document.createElement('li');
@@ -182,7 +270,7 @@
             return;
         }
 
-        // Strategy 5: Generic - find any suitable header
+        // Strategy 5: Generic header
         const repoHeader = document.querySelector('[data-testid="repository-container-header"]') ||
                           document.querySelector('.repository-content') ||
                           document.querySelector('.repohead');
