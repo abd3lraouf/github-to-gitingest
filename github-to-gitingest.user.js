@@ -9,7 +9,7 @@
 // @grant        none
 // @homepageURL  https://github.com/abd3lraouf/github-to-gitingest
 // @supportURL   https://github.com/abd3lraouf/github-to-gitingest/issues
-// @original     https://greasyfork.org/en/scripts/527278
+// @contributionURL https://greasyfork.org/en/scripts/527278
 // @downloadURL  https://raw.githubusercontent.com/abd3lraouf/github-to-gitingest/main/github-to-gitingest.user.js
 // @updateURL    https://raw.githubusercontent.com/abd3lraouf/github-to-gitingest/main/github-to-gitingest.user.js
 // ==/UserScript==
