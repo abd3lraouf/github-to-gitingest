@@ -10,8 +10,8 @@
 // @homepageURL  https://github.com/abd3lraouf/github-to-gitingest
 // @supportURL   https://github.com/abd3lraouf/github-to-gitingest/issues
 // @contributionURL https://greasyfork.org/en/scripts/527278
-// @downloadURL  https://raw.githubusercontent.com/abd3lraouf/github-to-gitingest/main/github-to-gitingest.user.js
-// @updateURL    https://raw.githubusercontent.com/abd3lraouf/github-to-gitingest/main/github-to-gitingest.user.js
+// @downloadURL  https://github.com/abd3lraouf/github-to-gitingest/raw/refs/heads/main/github-to-gitingest.user.js
+// @updateURL    https://github.com/abd3lraouf/github-to-gitingest/raw/refs/heads/main/github-to-gitingest.user.js
 // ==/UserScript==
 
 (function() {
