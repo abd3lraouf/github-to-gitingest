@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         GitHub to Gitingest + Copy README
 // @namespace    https://github.com/abd3lraouf
-// @version      3.2
-// @description  Adds native-styled GitHub buttons: open the repo in Gitingest and copy its README as raw Markdown (with a picker when a repo has multiple READMEs)
+// @version      3.3
+// @description  Adds native GitHub buttons: open the repo in Gitingest and copy its README as raw Markdown — a split button with a dropdown picker when a repo has multiple READMEs
 // @author       abd3lraouf
 // @license      MIT
 // @match        https://github.com/*
@@ -48,9 +48,10 @@
     }
 
     /**
-     * Inject styles once. Buttons consume GitHub's own Primer CSS variables so they
-     * inherit the active theme (light/dark/dimmed) and match native button metrics
-     * (28px tall, 6px radius, 12px/500 label) instead of imposing a custom look.
+     * Inject the handful of styles we still own. The buttons themselves use GitHub's
+     * native Primer classes (`btn`, `BtnGroup`, `SelectMenu`, …) so they inherit the
+     * active theme and native metrics for free — we only need container layout and a
+     * currentColor fallback for our octicons.
      */
     function injectStyles() {
         if (document.getElementById(STYLE_ID)) return;
@@ -64,108 +65,16 @@
                 margin-left: 8px;
                 vertical-align: middle;
             }
-            .ghx-btn {
-                display: inline-flex;
-                align-items: center;
-                gap: 6px;
-                height: 28px;
-                padding: 0 12px;
-                border-radius: 6px;
-                font: 500 12px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
-                white-space: nowrap;
-                cursor: pointer;
-                text-decoration: none;
-                user-select: none;
-                border: 1px solid var(--button-default-borderColor-rest, var(--borderColor-default, #d1d9e0));
-                background: var(--button-default-bgColor-rest, var(--bgColor-muted, #f6f8fa));
-                color: var(--button-default-fgColor-rest, var(--fgColor-default, #1f2328));
-                transition: background-color .15s ease, border-color .15s ease, color .15s ease;
-            }
-            .ghx-btn:hover {
-                background: var(--button-default-bgColor-hover, #eef1f4);
-                border-color: var(--button-default-borderColor-hover, var(--borderColor-muted, #d1d9e0));
-            }
-            .ghx-btn:active {
-                background: var(--button-default-bgColor-active, #e6eaef);
-            }
-            .ghx-btn[disabled] {
-                opacity: .6;
-                cursor: default;
-                pointer-events: none;
-            }
-            .ghx-btn svg {
+            /* Paint our octicons with the button's text color even if Primer's
+               .octicon rule isn't on the page; the gradient sparkle keeps its own fill. */
+            #${CONTAINER_ID} .octicon,
+            #${CONTAINER_ID} .SelectMenu .octicon {
                 fill: currentColor;
-                flex-shrink: 0;
             }
-            /* Only the Gitingest glyph carries the brand accent; the label stays native. */
-            .ghx-btn--gitingest svg { fill: #f97316; }
-            /* Dropdown caret on the Copy README button when several READMEs exist. */
-            .ghx-btn .ghx-caret { margin-left: -2px; opacity: .6; }
-            /* Transient states for the copy action, using GitHub's semantic tokens. */
-            .ghx-btn--success {
-                color: var(--fgColor-success, var(--color-success-fg, #1a7f37));
-                border-color: var(--fgColor-success, var(--color-success-fg, #1a7f37));
-            }
-            .ghx-btn--success svg { fill: currentColor; }
-            .ghx-btn--error {
-                color: var(--fgColor-danger, var(--color-danger-fg, #cf222e));
-                border-color: var(--fgColor-danger, var(--color-danger-fg, #cf222e));
-            }
-            /* GitHub-style ActionMenu, shown when a repo exposes more than one README. */
-            .ghx-menu {
-                position: fixed;
-                z-index: 1000;
-                min-width: 200px;
-                max-width: 340px;
-                margin: 0;
-                padding: 4px;
-                background: var(--overlay-bgColor, var(--bgColor-default, #fff));
-                border: 1px solid var(--borderColor-default, #d1d9e0);
-                border-radius: 12px;
-                box-shadow: var(--shadow-floating-large, 0 8px 24px rgba(31, 35, 40, .2));
-                font: 400 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
-                color: var(--fgColor-default, #1f2328);
-            }
-            .ghx-menu-header {
-                padding: 6px 8px;
-                font-size: 12px;
-                font-weight: 600;
-                color: var(--fgColor-muted, #59636e);
-            }
-            .ghx-menu-sep {
-                height: 1px;
-                margin: 4px 0;
-                background: var(--borderColor-muted, #d1d9e0);
-            }
-            .ghx-menu-item {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-                width: 100%;
-                box-sizing: border-box;
-                padding: 6px 8px;
-                border: 0;
-                border-radius: 6px;
-                background: transparent;
-                color: inherit;
-                font: inherit;
-                text-align: left;
-                cursor: pointer;
-            }
-            .ghx-menu-item:hover,
-            .ghx-menu-item:focus-visible {
-                background: var(--control-transparent-bgColor-hover, var(--bgColor-muted, #eef1f4));
-                outline: none;
-            }
-            .ghx-menu-item svg {
-                fill: currentColor;
-                flex-shrink: 0;
-                opacity: .7;
-            }
-            .ghx-menu-item span {
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
+            /* Drop the README picker below the split button. Primer leaves the
+               absolutely-positioned SelectMenu at top:auto, which overlaps the button. */
+            @media (min-width: 544px) {
+                #${CONTAINER_ID} .SelectMenu { top: 100%; }
             }
         `;
         document.head.appendChild(style);
@@ -176,6 +85,7 @@
     /** Build an inline SVG octicon (16x16 viewBox) from one or more path strings. */
     function makeIcon(paths, viewBox = '0 0 16 16') {
         const svg = document.createElementNS(SVG_NS, 'svg');
+        svg.setAttribute('class', 'octicon');
         svg.setAttribute('viewBox', viewBox);
         svg.setAttribute('width', '16');
         svg.setAttribute('height', '16');
@@ -199,6 +109,7 @@
          */
         gitingest: () => {
             const svg = document.createElementNS(SVG_NS, 'svg');
+            svg.setAttribute('class', 'octicon');
             svg.setAttribute('viewBox', '0 0 16 16');
             svg.setAttribute('width', '16');
             svg.setAttribute('height', '16');
@@ -256,23 +167,33 @@
         // Octicon: triangle-down — the dropdown caret shown when a repo has many READMEs.
         caret: () => makeIcon(
             'm4.427 7.427 3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427Z'
+        ),
+        // Octicon: x — close button in the picker header.
+        x: () => makeIcon(
+            'M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z'
         )
     };
 
-    /** Swap a button's icon + label in place. */
-    function setButton(btn, icon, label) {
+    /**
+     * Fill a native .btn with a leading octicon + label, exactly like GitHub's own
+     * buttons: the icon is a direct child with `octicon mr-2` and inherits Primer's
+     * vertical alignment. No wrapper — that would change the button height and break
+     * the BtnGroup seam.
+     */
+    function fillButton(btn, icon, label) {
+        icon.classList.add('mr-2');
         btn.replaceChildren(icon, Object.assign(document.createElement('span'), { textContent: label }));
     }
 
-    /** Create the Gitingest link button (points at the repo root on gitingest.com). */
+    /** Create the Gitingest link button (native .btn pointing at gitingest.com). */
     function createGitingestButton({ owner, repo }) {
         const a = document.createElement('a');
-        a.className = 'ghx-btn ghx-btn--gitingest';
+        a.className = 'btn btn-sm';
         a.href = `https://gitingest.com/${owner}/${repo}`;
         a.target = '_blank';
         a.rel = 'noopener noreferrer';
         a.title = 'Open in Gitingest — convert repo to LLM-friendly text';
-        setButton(a, ICONS.gitingest(), 'Gitingest');
+        fillButton(a, ICONS.gitingest(), 'Gitingest');
         return a;
     }
 
@@ -289,10 +210,32 @@
     const README_RE = /^readme([._-].*)?$/i;
 
     /**
+     * Sort key that floats the "default" README to the front: unqualified / English
+     * first, then by extension (Markdown ahead of the rest). Localized variants
+     * (README-zh_CN.md, README.ja.md, …) sort after. Lower is earlier.
+     */
+    function readmeSortKey(name) {
+        const dot = name.lastIndexOf('.');
+        const ext = (dot > 0 ? name.slice(dot + 1) : '').toLowerCase();
+        const stem = dot > 0 ? name.slice(0, dot) : name;
+        // Qualifier = whatever follows "readme" once a leading separator is stripped.
+        const q = stem.replace(/^readme/i, '').replace(/^[._-]/, '').toLowerCase();
+        const localeRank = q === '' ? 0 : /^en([_-]|$)/.test(q) ? 1 : 2;   // plain → english → other
+        const extRank = (ext === 'md' || ext === 'markdown') ? 0 : ext === '' ? 1 : 2;
+        return [localeRank, extRank];
+    }
+
+    /** Stable signature of a discovered README set, for change detection on refresh. */
+    function readmeSignature(list) {
+        return list.map((r) => `${r.ref}/${r.path}`).join('|');
+    }
+
+    /**
      * Discover every root-level README the current page already exposes. The repo home
      * (and any tree page) lists each file as a `/{owner}/{repo}/blob/{ref}/{name}` link,
      * so this finds localized variants (README.md, README.zh-CN.md, …) with their exact
      * ref and casing and zero network requests. Returns [] when no listing is present.
+     * The first entry is the "default" README (unqualified English Markdown when present).
      */
     function discoverReadmes(owner, repo) {
         const prefix = `/${owner}/${repo}/blob/`;
@@ -307,9 +250,10 @@
             if (!README_RE.test(path)) continue;
             if (!byPath.has(path)) byPath.set(path, { ref, path });
         }
-        // Plain README first, then localized/other variants alphabetically.
-        const rank = (p) => /^readme\.(md|markdown)$/i.test(p) ? 0 : /^readme$/i.test(p) ? 1 : 2;
-        return [...byPath.values()].sort((a, b) => rank(a.path) - rank(b.path) || a.path.localeCompare(b.path));
+        return [...byPath.values()].sort((a, b) => {
+            const ka = readmeSortKey(a.path), kb = readmeSortKey(b.path);
+            return ka[0] - kb[0] || ka[1] - kb[1] || a.path.localeCompare(b.path);
+        });
     }
 
     /** Fetch one raw file from the CDN; throws on any non-OK response. */
@@ -337,171 +281,153 @@
         throw new Error('No README');
     }
 
-    // ── GitHub-style dropdown for picking among multiple READMEs ──────────────────
-    let activeMenu = null;
-
-    function closeReadmeMenu() {
-        if (!activeMenu) return;
-        document.removeEventListener('click', activeMenu.onDoc, true);
-        document.removeEventListener('keydown', activeMenu.onKey, true);
-        window.removeEventListener('scroll', activeMenu.onDismiss, true);
-        window.removeEventListener('resize', activeMenu.onDismiss);
-        activeMenu.el.remove();
-        activeMenu = null;
-    }
-
-    /** Place the menu just under the anchor, flipping/clamping to stay on-screen. */
-    function positionReadmeMenu(menu, anchor) {
-        const r = anchor.getBoundingClientRect();
-        const mw = menu.offsetWidth, mh = menu.offsetHeight;
-        let left = r.left;
-        let top = r.bottom + 4;
-        if (left + mw > window.innerWidth - 8) left = Math.max(8, r.right - mw);
-        if (top + mh > window.innerHeight - 8) top = Math.max(8, r.top - mh - 4);
-        menu.style.left = `${Math.round(left)}px`;
-        menu.style.top = `${Math.round(top)}px`;
-    }
-
-    /** Open the picker anchored to `anchor`; calls onChoose({ref, path}) on selection. */
-    function openReadmeMenu(anchor, items, onChoose) {
-        closeReadmeMenu();
-        const menu = document.createElement('div');
-        menu.className = 'ghx-menu';
-        menu.setAttribute('role', 'menu');
-
-        const header = document.createElement('div');
-        header.className = 'ghx-menu-header';
-        header.textContent = `Copy which README? (${items.length})`;
-        menu.append(header, Object.assign(document.createElement('div'), { className: 'ghx-menu-sep' }));
-
-        for (const item of items) {
-            const el = document.createElement('button');
-            el.type = 'button';
-            el.className = 'ghx-menu-item';
-            el.setAttribute('role', 'menuitem');
-            el.title = item.path;
-            el.append(ICONS.file(), Object.assign(document.createElement('span'), { textContent: item.path }));
-            el.addEventListener('click', (e) => {
-                e.stopPropagation();
-                closeReadmeMenu();
-                onChoose(item);
-            });
-            menu.appendChild(el);
-        }
-
-        document.body.appendChild(menu);
-        positionReadmeMenu(menu, anchor);
-        menu.querySelector('.ghx-menu-item')?.focus();
-
-        // Clicking the anchor is handled by its own toggle, so exclude it here.
-        const onDoc = (e) => { if (!menu.contains(e.target) && !anchor.contains(e.target)) closeReadmeMenu(); };
-        const onKey = (e) => { if (e.key === 'Escape') { closeReadmeMenu(); anchor.focus(); } };
-        const onDismiss = () => closeReadmeMenu();
-        // Defer the document listener so the opening click doesn't immediately dismiss it.
-        setTimeout(() => document.addEventListener('click', onDoc, true), 0);
-        document.addEventListener('keydown', onKey, true);
-        window.addEventListener('scroll', onDismiss, true);
-        window.addEventListener('resize', onDismiss);
-        activeMenu = { el: menu, onDoc, onKey, onDismiss };
-    }
-
     /**
-     * Paint the button's idle state: book icon + "Copy README", plus a dropdown caret
-     * when the page currently exposes more than one README (signalling the picker).
+     * Build the "Copy README" control. Returns either a plain native button (0–1 README)
+     * or a native split BtnGroup (2+ READMEs): a main button that copies the default
+     * README plus a `<details>`/`SelectMenu` caret to pick a specific one. The returned
+     * root carries a `data-ghx-sig` signature so the observer can tell when to rebuild.
      */
-    function paintReadmeButton(btn, owner, repo) {
-        const kids = [ICONS.copy(), Object.assign(document.createElement('span'), { textContent: 'Copy README' })];
-        if (discoverReadmes(owner, repo).length > 1) {
-            const caret = ICONS.caret();
-            caret.classList.add('ghx-caret');
-            kids.push(caret);
-        }
-        btn.replaceChildren(...kids);
-    }
+    function buildReadmeControl(owner, repo) {
+        const readmes = discoverReadmes(owner, repo);
+        const many = readmes.length > 1;
 
-    /**
-     * Keep the caret in sync as GitHub's file list streams in after our button mounts.
-     * Only repaints an idle button, and only when the caret state actually needs to
-     * change — so it never flickers or clobbers a Copying…/Copied/Failed state.
-     */
-    function refreshReadmeAffordance() {
-        const btn = document.querySelector(`#${CONTAINER_ID} .ghx-btn--readme`);
-        if (!btn || btn.disabled) return;
-        if (btn.classList.contains('ghx-btn--success') || btn.classList.contains('ghx-btn--error')) return;
-        const repo = getRepoInfo();
-        if (!repo) return;
-        const many = discoverReadmes(repo.owner, repo.repo).length > 1;
-        if (many === !!btn.querySelector('.ghx-caret')) return;   // already correct
-        paintReadmeButton(btn, repo.owner, repo.repo);
-    }
+        const main = document.createElement('button');
+        main.type = 'button';
+        main.className = 'btn btn-sm ghx-readme-main' + (many ? ' BtnGroup-item' : '');
+        main.title = 'Copy this repository\'s README as raw Markdown';
+        fillButton(main, ICONS.copy(), 'Copy README');
 
-    /**
-     * Create the "Copy README" button. On click it copies the repo's README as raw
-     * Markdown (via raw.githubusercontent.com). When the page exposes more than one
-     * README — localized variants, etc. — it shows a caret and opens a picker so the
-     * user can choose which to copy. Shows transient success/error feedback.
-     */
-    function createReadmeButton({ owner, repo }) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'ghx-btn ghx-btn--readme';
-        btn.title = 'Copy this repository\'s README as raw Markdown';
-        paintReadmeButton(btn, owner, repo);
-
+        // Transient feedback lives on the main button, expressed with Primer utilities.
         let resetTimer = null;
+        const paintIdle = () => {
+            main.classList.remove('color-fg-success', 'color-fg-danger');
+            fillButton(main, ICONS.copy(), 'Copy README');
+            main.disabled = false;
+        };
         const flash = (cls, icon, label, ms = 2000) => {
             clearTimeout(resetTimer);
-            btn.classList.remove('ghx-btn--success', 'ghx-btn--error');
-            if (cls) btn.classList.add(cls);
-            setButton(btn, icon, label);
-            resetTimer = setTimeout(() => {
-                btn.classList.remove('ghx-btn--success', 'ghx-btn--error');
-                paintReadmeButton(btn, owner, repo);
-                btn.disabled = false;
-            }, ms);
+            main.classList.remove('color-fg-success', 'color-fg-danger');
+            if (cls) main.classList.add(cls);
+            fillButton(main, icon, label);
+            resetTimer = setTimeout(paintIdle, ms);
         };
-
-        // Run a copy: show progress, write to the clipboard, flash the outcome.
         const copy = async (getMarkdown) => {
-            if (btn.disabled) return;
-            btn.disabled = true;
+            if (main.disabled) return;
+            main.disabled = true;
             clearTimeout(resetTimer);
-            setButton(btn, ICONS.copy(), 'Copying…');
+            fillButton(main, ICONS.copy(), 'Copying…');
             try {
                 const markdown = await getMarkdown();
                 await navigator.clipboard.writeText(markdown);
-                flash('ghx-btn--success', ICONS.check(), 'Copied');
+                flash('color-fg-success', ICONS.check(), 'Copied');
             } catch (err) {
-                const label = err.message === 'No README' ? 'No README' : 'Failed';
-                flash('ghx-btn--error', ICONS.alert(), label);
+                flash('color-fg-danger', ICONS.alert(), err.message === 'No README' ? 'No README' : 'Failed');
                 console.warn('[ghx] Copy README failed:', err);
             }
         };
 
-        btn.addEventListener('click', () => {
-            if (btn.disabled) return;
-            if (activeMenu) { closeReadmeMenu(); return; }   // clicking again closes the picker
-
-            const readmes = discoverReadmes(owner, repo);
-            if (readmes.length > 1) {
-                // Multiple READMEs (e.g. localized) — let the user choose which to copy.
-                openReadmeMenu(btn, readmes, (choice) => copy(() => fetchRawPath(owner, repo, choice)));
-                return;
-            }
-            // Exactly one known README → copy it; none listed here → probe common names.
-            copy(() => readmes.length === 1
+        // Main button copies the default (first) README; falls back to a probe when the
+        // page listed none (e.g. a blob subpage).
+        main.addEventListener('click', () => {
+            copy(() => readmes.length >= 1
                 ? fetchRawPath(owner, repo, readmes[0])
                 : fetchReadmeMarkdown(owner, repo));
         });
 
-        return btn;
+        if (!many) {
+            main.dataset.ghxSig = readmeSignature(readmes);
+            return main;
+        }
+
+        // Split button: native BtnGroup + a details/SelectMenu picker (like Fork).
+        const group = document.createElement('div');
+        group.className = 'BtnGroup d-flex ghx-readme-group';
+        group.dataset.ghxSig = readmeSignature(readmes);
+
+        const details = document.createElement('details');
+        details.className = 'details-reset details-overlay BtnGroup-parent d-inline-block position-relative';
+
+        // `float-none` matches GitHub's own split summary — BtnGroup-item floats left,
+        // which misaligns it inside the non-flex <details> parent without this reset.
+        const summary = document.createElement('summary');
+        summary.className = 'btn btn-sm BtnGroup-item px-2 float-none';
+        summary.setAttribute('role', 'button');
+        summary.setAttribute('aria-haspopup', 'menu');
+        summary.setAttribute('aria-label', 'Choose a README to copy');
+        summary.appendChild(ICONS.caret());
+
+        const menu = document.createElement('details-menu');
+        menu.className = 'SelectMenu right-0';
+        menu.setAttribute('role', 'menu');
+
+        const modal = document.createElement('div');
+        modal.className = 'SelectMenu-modal';
+
+        const header = document.createElement('header');
+        header.className = 'SelectMenu-header';
+        const title = document.createElement('h3');
+        title.className = 'SelectMenu-title';
+        title.textContent = 'Copy README';
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.className = 'SelectMenu-closeButton';
+        closeBtn.setAttribute('aria-label', 'Close menu');
+        closeBtn.appendChild(ICONS.x());
+        closeBtn.addEventListener('click', () => { details.open = false; });
+        header.append(title, closeBtn);
+
+        const list = document.createElement('div');
+        list.className = 'SelectMenu-list';
+        for (const item of readmes) {
+            const it = document.createElement('button');
+            it.type = 'button';
+            it.className = 'SelectMenu-item';
+            it.setAttribute('role', 'menuitem');
+            const icon = ICONS.file();
+            icon.classList.add('mr-2');
+            it.append(icon, Object.assign(document.createElement('span'), { textContent: item.path }));
+            it.addEventListener('click', (e) => {
+                e.preventDefault();
+                details.open = false;   // close the dropdown (details-menu also auto-closes)
+                copy(() => fetchRawPath(owner, repo, item));
+            });
+            list.appendChild(it);
+        }
+
+        modal.append(header, list);
+        menu.appendChild(modal);
+        details.append(summary, menu);
+        group.append(main, details);
+        return group;
+    }
+
+    /**
+     * Rebuild the Copy README control when the discovered README set changes — most
+     * importantly when GitHub streams the file list in after mount and the count crosses
+     * the 1↔2 boundary (plain button ↔ split button). Skips rebuilding while a copy is
+     * in flight, a result is showing, or the picker is open, so nothing flickers.
+     */
+    function refreshReadmeControl() {
+        const container = document.getElementById(CONTAINER_ID);
+        if (!container) return;
+        const root = container.querySelector('.ghx-readme-main, .ghx-readme-group');
+        if (!root) return;
+        const main = root.classList.contains('ghx-readme-main') ? root : root.querySelector('.ghx-readme-main');
+        if (!main || main.disabled) return;                                   // mid-copy
+        if (main.classList.contains('color-fg-success') || main.classList.contains('color-fg-danger')) return;
+        if (root.querySelector('details[open]')) return;                      // picker open
+        const repo = getRepoInfo();
+        if (!repo) return;
+        const readmes = discoverReadmes(repo.owner, repo.repo);
+        if (root.dataset.ghxSig === readmeSignature(readmes)) return;         // unchanged
+        root.replaceWith(buildReadmeControl(repo.owner, repo.repo));
     }
 
     /** Build the container holding both buttons. */
     function createContainer(repo) {
         const container = document.createElement('div');
         container.id = CONTAINER_ID;
-        container.append(createGitingestButton(repo), createReadmeButton(repo));
+        container.append(createGitingestButton(repo), buildReadmeControl(repo.owner, repo.repo));
         return container;
     }
 
@@ -567,12 +493,12 @@
     }
 
     // Debounced work driven by the SPA mutation observer: insert the buttons when
-    // they're missing, or refresh the README caret as the file list streams in.
+    // they're missing, or rebuild the README control as the file list streams in.
     let insertTimeout = null;
     function debouncedInsert() {
         if (insertTimeout) clearTimeout(insertTimeout);
         insertTimeout = setTimeout(() => {
-            if (document.getElementById(CONTAINER_ID)) refreshReadmeAffordance();
+            if (document.getElementById(CONTAINER_ID)) refreshReadmeControl();
             else insertButton();
         }, 50);
     }
