@@ -1,9 +1,19 @@
 # GitHub to Gitingest + Copy README
 
+<p align="center">
+  <a href="https://raw.githubusercontent.com/abd3lraouf/github-to-gitingest/main/github-to-gitingest.user.js"><img src="https://img.shields.io/badge/Install-Userscript-2ea44f?style=for-the-badge&logo=tampermonkey&logoColor=white" alt="Install userscript"></a>
+  <img src="https://img.shields.io/badge/version-3.1-1f6feb?style=for-the-badge" alt="Version 3.1">
+  <img src="https://img.shields.io/badge/license-MIT-8250df?style=for-the-badge" alt="MIT License">
+</p>
+
 A Tampermonkey/Greasemonkey userscript that adds two native-styled buttons to GitHub **repository** pages:
 
 - **Gitingest** — opens the repo on [gitingest.com](https://gitingest.com), which converts GitHub repositories into LLM-friendly text digests, perfect for feeding codebases to AI assistants.
 - **Copy README** — copies the repository's README as raw Markdown to your clipboard.
+
+<p align="center">
+  <img src="screenshot.png" alt="The Gitingest and Copy README buttons sitting natively beside Notifications, Fork, and Star in the GitHub repository header" width="640">
+</p>
 
 ## Features
 
@@ -14,12 +24,12 @@ A Tampermonkey/Greasemonkey userscript that adds two native-styled buttons to Gi
 
 ## Installation
 
-1. Install [Tampermonkey](https://www.tampermonkey.net/) (Chrome/Edge/Firefox/Safari)
-2. Click the link below to install:
+1. Install a userscript manager — [Tampermonkey](https://www.tampermonkey.net/) or [Violentmonkey](https://violentmonkey.github.io/) (Chrome/Edge/Firefox/Safari).
+2. Click the install button:
 
-   **[Install Script](https://raw.githubusercontent.com/abd3lraouf/github-to-gitingest/main/github-to-gitingest.user.js)**
+   [![Install userscript](https://img.shields.io/badge/Install-Userscript-2ea44f?style=for-the-badge&logo=tampermonkey&logoColor=white)](https://raw.githubusercontent.com/abd3lraouf/github-to-gitingest/main/github-to-gitingest.user.js)
 
-3. Click "Install" in the Tampermonkey dialog
+3. Confirm **Install** in the manager's dialog. Updates are delivered automatically from this repo.
 
 ## How it works
 

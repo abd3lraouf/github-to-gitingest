@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitHub to Gitingest + Copy README
 // @namespace    https://github.com/abd3lraouf
-// @version      3.0
+// @version      3.1
 // @description  Adds native-styled GitHub buttons: open the repo in Gitingest and copy its README as raw Markdown
 // @author       abd3lraouf
 // @license      MIT
@@ -113,35 +113,79 @@
         document.head.appendChild(style);
     }
 
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+
     /** Build an inline SVG octicon (16x16 viewBox) from one or more path strings. */
     function makeIcon(paths, viewBox = '0 0 16 16') {
-        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        const svg = document.createElementNS(SVG_NS, 'svg');
         svg.setAttribute('viewBox', viewBox);
         svg.setAttribute('width', '16');
         svg.setAttribute('height', '16');
         svg.setAttribute('aria-hidden', 'true');
         for (const d of [].concat(paths)) {
-            const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            const p = document.createElementNS(SVG_NS, 'path');
             p.setAttribute('d', d);
             svg.appendChild(p);
         }
         return svg;
     }
 
+    // Primer's crisp sparkle glyph, reused at two sizes to make the Gitingest mark.
+    const SPARKLE_D = 'M7.53 1.282a.5.5 0 0 1 .94 0l.478 1.306a7.492 7.492 0 0 0 4.464 4.464l1.305.478a.5.5 0 0 1 0 .94l-1.305.478a7.492 7.492 0 0 0-4.464 4.464l-.478 1.305a.5.5 0 0 1-.94 0l-.478-1.305a7.492 7.492 0 0 0-4.464-4.464L1.282 8.47a.5.5 0 0 1 0-.94l1.306-.478a7.492 7.492 0 0 0 4.464-4.464Z';
+
     const ICONS = {
-        // Sparkle/digest glyph (24-viewBox art scaled into a 16px box).
-        gitingest: () => makeIcon(
-            'M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3zM5 19l1 3 1-3 3-1-3-1-1-3-1 3-3 1 3 1zM19 13l.5 1.5 1.5.5-1.5.5-.5 1.5-.5-1.5-1.5-.5 1.5-.5.5-1.5z',
-            '0 0 24 24'
+        /**
+         * Gitingest "digest" mark: a primary Primer sparkle plus a small accent star,
+         * both painted with an amber→orange→magenta gradient. The gradient lives in the
+         * icon's own <defs>, so the mark keeps its brand color regardless of button state.
+         */
+        gitingest: () => {
+            const svg = document.createElementNS(SVG_NS, 'svg');
+            svg.setAttribute('viewBox', '0 0 16 16');
+            svg.setAttribute('width', '16');
+            svg.setAttribute('height', '16');
+            svg.setAttribute('aria-hidden', 'true');
+
+            const defs = document.createElementNS(SVG_NS, 'defs');
+            const grad = document.createElementNS(SVG_NS, 'linearGradient');
+            grad.setAttribute('id', 'ghx-gitingest-grad');
+            grad.setAttribute('x1', '1');
+            grad.setAttribute('y1', '1');
+            grad.setAttribute('x2', '15');
+            grad.setAttribute('y2', '15');
+            grad.setAttribute('gradientUnits', 'userSpaceOnUse');
+            [['0', '#fbbf24'], ['0.55', '#f97316'], ['1', '#ec4899']].forEach(([offset, color]) => {
+                const stop = document.createElementNS(SVG_NS, 'stop');
+                stop.setAttribute('offset', offset);
+                stop.setAttribute('stop-color', color);
+                grad.appendChild(stop);
+            });
+            defs.appendChild(grad);
+            svg.appendChild(defs);
+
+            const FILL = 'url(#ghx-gitingest-grad)';
+            // Primary sparkle, scaled down and nudged toward the lower-left…
+            const main = document.createElementNS(SVG_NS, 'path');
+            main.setAttribute('d', SPARKLE_D);
+            main.setAttribute('fill', FILL);
+            main.setAttribute('transform', 'translate(-0.6 0.9) scale(0.86)');
+            svg.appendChild(main);
+            // …leaving the top-right corner for a small accent star.
+            const accent = document.createElementNS(SVG_NS, 'path');
+            accent.setAttribute('d', SPARKLE_D);
+            accent.setAttribute('fill', FILL);
+            accent.setAttribute('transform', 'translate(10.2 0.1) scale(0.34)');
+            svg.appendChild(accent);
+
+            return svg;
+        },
+        // Octicon: book — mirrors GitHub's own README glyph, so the button reads as "the README".
+        copy: () => makeIcon(
+            'M0 1.75A.75.75 0 0 1 .75 1h4.253c1.227 0 2.317.59 3 1.501A3.743 3.743 0 0 1 11.006 1h4.245a.75.75 0 0 1 .75.75v10.5a.75.75 0 0 1-.75.75h-4.507a2.25 2.25 0 0 0-1.591.659l-.622.621a.75.75 0 0 1-1.06 0l-.622-.621A2.25 2.25 0 0 0 5.258 13H.75a.75.75 0 0 1-.75-.75Zm7.251 10.324.004-5.073-.002-2.253A2.25 2.25 0 0 0 5.003 2.5H1.5v9h3.757a3.75 3.75 0 0 1 1.994.574ZM8.755 4.75l-.004 7.322a3.752 3.752 0 0 1 1.992-.572H14.5v-9h-3.495a2.25 2.25 0 0 0-2.25 2.25Z'
         ),
-        // Octicon: copy
-        copy: () => makeIcon([
-            'M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z',
-            'M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z'
-        ]),
-        // Octicon: check
+        // Octicon: check-circle-fill — a solid confirmation mark for the copied state.
         check: () => makeIcon(
-            'M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z'
+            'M8 16A8 8 0 1 1 8 0a8 8 0 0 1 0 16Zm3.78-9.72a.751.751 0 0 0-.018-1.042.751.751 0 0 0-1.042-.018L6.75 9.19 5.28 7.72a.751.751 0 0 0-1.042.018.751.751 0 0 0-.018 1.042l2 2a.75.75 0 0 0 1.06 0Z'
         ),
         // Octicon: alert
         alert: () => makeIcon(
