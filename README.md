@@ -12,11 +12,7 @@ A Tampermonkey/Greasemonkey userscript that adds two native GitHub buttons to **
 - **Copy README** — copies the repository's README as raw Markdown to your clipboard. When a repo has several READMEs (localized variants, etc.), it becomes a split button with a dropdown to pick which one.
 
 <p align="center">
-  <img src="screenshot.png" alt="The Gitingest and Copy README buttons sitting natively beside Sponsor, Notifications, Fork, and Star in the GitHub repository header" width="700">
-</p>
-
-<p align="center">
-  <img src="screenshot-dropdown.png" alt="The Copy README split button with its dropdown open, listing README.md and README-zh_CN.md to choose from" width="300">
+  <img src="screenshot.png" alt="The Gitingest and Copy README split button sitting natively beside Sponsor, Notifications, Fork, and Star, with the README picker dropdown open listing README.md and README-zh_CN.md" width="820">
 </p>
 
 ## Features
