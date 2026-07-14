@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         GitHub to Gitingest + Copy README
 // @namespace    https://github.com/abd3lraouf
-// @version      3.1
-// @description  Adds native-styled GitHub buttons: open the repo in Gitingest and copy its README as raw Markdown
+// @version      3.2
+// @description  Adds native-styled GitHub buttons: open the repo in Gitingest and copy its README as raw Markdown (with a picker when a repo has multiple READMEs)
 // @author       abd3lraouf
 // @license      MIT
 // @match        https://github.com/*
@@ -99,6 +99,8 @@
             }
             /* Only the Gitingest glyph carries the brand accent; the label stays native. */
             .ghx-btn--gitingest svg { fill: #f97316; }
+            /* Dropdown caret on the Copy README button when several READMEs exist. */
+            .ghx-btn .ghx-caret { margin-left: -2px; opacity: .6; }
             /* Transient states for the copy action, using GitHub's semantic tokens. */
             .ghx-btn--success {
                 color: var(--fgColor-success, var(--color-success-fg, #1a7f37));
@@ -108,6 +110,62 @@
             .ghx-btn--error {
                 color: var(--fgColor-danger, var(--color-danger-fg, #cf222e));
                 border-color: var(--fgColor-danger, var(--color-danger-fg, #cf222e));
+            }
+            /* GitHub-style ActionMenu, shown when a repo exposes more than one README. */
+            .ghx-menu {
+                position: fixed;
+                z-index: 1000;
+                min-width: 200px;
+                max-width: 340px;
+                margin: 0;
+                padding: 4px;
+                background: var(--overlay-bgColor, var(--bgColor-default, #fff));
+                border: 1px solid var(--borderColor-default, #d1d9e0);
+                border-radius: 12px;
+                box-shadow: var(--shadow-floating-large, 0 8px 24px rgba(31, 35, 40, .2));
+                font: 400 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+                color: var(--fgColor-default, #1f2328);
+            }
+            .ghx-menu-header {
+                padding: 6px 8px;
+                font-size: 12px;
+                font-weight: 600;
+                color: var(--fgColor-muted, #59636e);
+            }
+            .ghx-menu-sep {
+                height: 1px;
+                margin: 4px 0;
+                background: var(--borderColor-muted, #d1d9e0);
+            }
+            .ghx-menu-item {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                width: 100%;
+                box-sizing: border-box;
+                padding: 6px 8px;
+                border: 0;
+                border-radius: 6px;
+                background: transparent;
+                color: inherit;
+                font: inherit;
+                text-align: left;
+                cursor: pointer;
+            }
+            .ghx-menu-item:hover,
+            .ghx-menu-item:focus-visible {
+                background: var(--control-transparent-bgColor-hover, var(--bgColor-muted, #eef1f4));
+                outline: none;
+            }
+            .ghx-menu-item svg {
+                fill: currentColor;
+                flex-shrink: 0;
+                opacity: .7;
+            }
+            .ghx-menu-item span {
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
             }
         `;
         document.head.appendChild(style);
@@ -190,6 +248,14 @@
         // Octicon: alert
         alert: () => makeIcon(
             'M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0 1 14.082 15H1.918a1.75 1.75 0 0 1-1.543-2.575Zm1.763.707a.25.25 0 0 0-.44 0L1.698 13.132a.25.25 0 0 0 .22.368h12.164a.25.25 0 0 0 .22-.368Zm.53 3.996v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z'
+        ),
+        // Octicon: file — used for each entry in the multi-README picker.
+        file: () => makeIcon(
+            'M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688a.252.252 0 0 0-.011-.013l-2.914-2.914a.272.272 0 0 0-.013-.011Z'
+        ),
+        // Octicon: triangle-down — the dropdown caret shown when a repo has many READMEs.
+        caret: () => makeIcon(
+            'm4.427 7.427 3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427Z'
         )
     };
 
@@ -210,18 +276,177 @@
         return a;
     }
 
+    // Candidate README filenames, most common first. raw.githubusercontent.com is
+    // case-sensitive, so the casings seen in the wild are listed explicitly.
+    const README_CANDIDATES = [
+        'README.md', 'readme.md', 'Readme.md',
+        'README.markdown', 'README.rst', 'README.txt',
+        'README.adoc', 'README.org', 'README'
+    ];
+
+    // Matches README, README.md, README.zh-CN.md, README_ja.md, readme-old.txt, … but
+    // not unrelated names like READMEISH — a separator or end must follow "readme".
+    const README_RE = /^readme([._-].*)?$/i;
+
     /**
-     * Create the "Copy README" button. On click it asks GitHub's REST API for the
-     * repo's README in raw form — the API resolves the file's real name, folder, and
-     * default branch server-side — then writes the Markdown to the clipboard, with
-     * transient success/error feedback.
+     * Discover every root-level README the current page already exposes. The repo home
+     * (and any tree page) lists each file as a `/{owner}/{repo}/blob/{ref}/{name}` link,
+     * so this finds localized variants (README.md, README.zh-CN.md, …) with their exact
+     * ref and casing and zero network requests. Returns [] when no listing is present.
+     */
+    function discoverReadmes(owner, repo) {
+        const prefix = `/${owner}/${repo}/blob/`;
+        const byPath = new Map();
+        for (const a of document.querySelectorAll(`a[href^="${prefix}"]`)) {
+            const rest = a.getAttribute('href').slice(prefix.length);
+            const slash = rest.indexOf('/');
+            if (slash < 0) continue;
+            const ref = decodeURIComponent(rest.slice(0, slash));
+            const path = rest.slice(slash + 1).split(/[#?]/)[0];
+            if (path.includes('/')) continue;            // root-level files only
+            if (!README_RE.test(path)) continue;
+            if (!byPath.has(path)) byPath.set(path, { ref, path });
+        }
+        // Plain README first, then localized/other variants alphabetically.
+        const rank = (p) => /^readme\.(md|markdown)$/i.test(p) ? 0 : /^readme$/i.test(p) ? 1 : 2;
+        return [...byPath.values()].sort((a, b) => rank(a.path) - rank(b.path) || a.path.localeCompare(b.path));
+    }
+
+    /** Fetch one raw file from the CDN; throws on any non-OK response. */
+    async function fetchRawPath(owner, repo, { ref, path }) {
+        const res = await fetch(`https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${path}`);
+        if (!res.ok) throw new Error('Failed');
+        return res.text();
+    }
+
+    /**
+     * Fallback resolver for pages that don't list files (e.g. the blob view): probe
+     * common filenames at the `HEAD` ref, which GitHub resolves to the default branch
+     * (main/master) server-side. Uses raw.githubusercontent.com — a CORS-enabled CDN
+     * with none of the REST API's 60-request/hour unauthenticated limit (the 403).
+     */
+    async function fetchReadmeMarkdown(owner, repo) {
+        for (const path of README_CANDIDATES) {
+            try {
+                const res = await fetch(`https://raw.githubusercontent.com/${owner}/${repo}/HEAD/${path}`);
+                if (res.ok) return res.text();
+            } catch {
+                // transient failure on one candidate — try the next
+            }
+        }
+        throw new Error('No README');
+    }
+
+    // ── GitHub-style dropdown for picking among multiple READMEs ──────────────────
+    let activeMenu = null;
+
+    function closeReadmeMenu() {
+        if (!activeMenu) return;
+        document.removeEventListener('click', activeMenu.onDoc, true);
+        document.removeEventListener('keydown', activeMenu.onKey, true);
+        window.removeEventListener('scroll', activeMenu.onDismiss, true);
+        window.removeEventListener('resize', activeMenu.onDismiss);
+        activeMenu.el.remove();
+        activeMenu = null;
+    }
+
+    /** Place the menu just under the anchor, flipping/clamping to stay on-screen. */
+    function positionReadmeMenu(menu, anchor) {
+        const r = anchor.getBoundingClientRect();
+        const mw = menu.offsetWidth, mh = menu.offsetHeight;
+        let left = r.left;
+        let top = r.bottom + 4;
+        if (left + mw > window.innerWidth - 8) left = Math.max(8, r.right - mw);
+        if (top + mh > window.innerHeight - 8) top = Math.max(8, r.top - mh - 4);
+        menu.style.left = `${Math.round(left)}px`;
+        menu.style.top = `${Math.round(top)}px`;
+    }
+
+    /** Open the picker anchored to `anchor`; calls onChoose({ref, path}) on selection. */
+    function openReadmeMenu(anchor, items, onChoose) {
+        closeReadmeMenu();
+        const menu = document.createElement('div');
+        menu.className = 'ghx-menu';
+        menu.setAttribute('role', 'menu');
+
+        const header = document.createElement('div');
+        header.className = 'ghx-menu-header';
+        header.textContent = `Copy which README? (${items.length})`;
+        menu.append(header, Object.assign(document.createElement('div'), { className: 'ghx-menu-sep' }));
+
+        for (const item of items) {
+            const el = document.createElement('button');
+            el.type = 'button';
+            el.className = 'ghx-menu-item';
+            el.setAttribute('role', 'menuitem');
+            el.title = item.path;
+            el.append(ICONS.file(), Object.assign(document.createElement('span'), { textContent: item.path }));
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                closeReadmeMenu();
+                onChoose(item);
+            });
+            menu.appendChild(el);
+        }
+
+        document.body.appendChild(menu);
+        positionReadmeMenu(menu, anchor);
+        menu.querySelector('.ghx-menu-item')?.focus();
+
+        // Clicking the anchor is handled by its own toggle, so exclude it here.
+        const onDoc = (e) => { if (!menu.contains(e.target) && !anchor.contains(e.target)) closeReadmeMenu(); };
+        const onKey = (e) => { if (e.key === 'Escape') { closeReadmeMenu(); anchor.focus(); } };
+        const onDismiss = () => closeReadmeMenu();
+        // Defer the document listener so the opening click doesn't immediately dismiss it.
+        setTimeout(() => document.addEventListener('click', onDoc, true), 0);
+        document.addEventListener('keydown', onKey, true);
+        window.addEventListener('scroll', onDismiss, true);
+        window.addEventListener('resize', onDismiss);
+        activeMenu = { el: menu, onDoc, onKey, onDismiss };
+    }
+
+    /**
+     * Paint the button's idle state: book icon + "Copy README", plus a dropdown caret
+     * when the page currently exposes more than one README (signalling the picker).
+     */
+    function paintReadmeButton(btn, owner, repo) {
+        const kids = [ICONS.copy(), Object.assign(document.createElement('span'), { textContent: 'Copy README' })];
+        if (discoverReadmes(owner, repo).length > 1) {
+            const caret = ICONS.caret();
+            caret.classList.add('ghx-caret');
+            kids.push(caret);
+        }
+        btn.replaceChildren(...kids);
+    }
+
+    /**
+     * Keep the caret in sync as GitHub's file list streams in after our button mounts.
+     * Only repaints an idle button, and only when the caret state actually needs to
+     * change — so it never flickers or clobbers a Copying…/Copied/Failed state.
+     */
+    function refreshReadmeAffordance() {
+        const btn = document.querySelector(`#${CONTAINER_ID} .ghx-btn--readme`);
+        if (!btn || btn.disabled) return;
+        if (btn.classList.contains('ghx-btn--success') || btn.classList.contains('ghx-btn--error')) return;
+        const repo = getRepoInfo();
+        if (!repo) return;
+        const many = discoverReadmes(repo.owner, repo.repo).length > 1;
+        if (many === !!btn.querySelector('.ghx-caret')) return;   // already correct
+        paintReadmeButton(btn, repo.owner, repo.repo);
+    }
+
+    /**
+     * Create the "Copy README" button. On click it copies the repo's README as raw
+     * Markdown (via raw.githubusercontent.com). When the page exposes more than one
+     * README — localized variants, etc. — it shows a caret and opens a picker so the
+     * user can choose which to copy. Shows transient success/error feedback.
      */
     function createReadmeButton({ owner, repo }) {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'ghx-btn';
+        btn.className = 'ghx-btn ghx-btn--readme';
         btn.title = 'Copy this repository\'s README as raw Markdown';
-        setButton(btn, ICONS.copy(), 'Copy README');
+        paintReadmeButton(btn, owner, repo);
 
         let resetTimer = null;
         const flash = (cls, icon, label, ms = 2000) => {
@@ -231,26 +456,19 @@
             setButton(btn, icon, label);
             resetTimer = setTimeout(() => {
                 btn.classList.remove('ghx-btn--success', 'ghx-btn--error');
-                setButton(btn, ICONS.copy(), 'Copy README');
+                paintReadmeButton(btn, owner, repo);
                 btn.disabled = false;
             }, ms);
         };
 
-        btn.addEventListener('click', async () => {
+        // Run a copy: show progress, write to the clipboard, flash the outcome.
+        const copy = async (getMarkdown) => {
             if (btn.disabled) return;
             btn.disabled = true;
             clearTimeout(resetTimer);
             setButton(btn, ICONS.copy(), 'Copying…');
             try {
-                const res = await fetch(
-                    `https://api.github.com/repos/${owner}/${repo}/readme`,
-                    { headers: { Accept: 'application/vnd.github.raw' } }
-                );
-                if (!res.ok) {
-                    // 404 = no README; 403 = unauthenticated rate limit (60/hr).
-                    throw new Error(res.status === 404 ? 'No README' : `HTTP ${res.status}`);
-                }
-                const markdown = await res.text();
+                const markdown = await getMarkdown();
                 await navigator.clipboard.writeText(markdown);
                 flash('ghx-btn--success', ICONS.check(), 'Copied');
             } catch (err) {
@@ -258,6 +476,22 @@
                 flash('ghx-btn--error', ICONS.alert(), label);
                 console.warn('[ghx] Copy README failed:', err);
             }
+        };
+
+        btn.addEventListener('click', () => {
+            if (btn.disabled) return;
+            if (activeMenu) { closeReadmeMenu(); return; }   // clicking again closes the picker
+
+            const readmes = discoverReadmes(owner, repo);
+            if (readmes.length > 1) {
+                // Multiple READMEs (e.g. localized) — let the user choose which to copy.
+                openReadmeMenu(btn, readmes, (choice) => copy(() => fetchRawPath(owner, repo, choice)));
+                return;
+            }
+            // Exactly one known README → copy it; none listed here → probe common names.
+            copy(() => readmes.length === 1
+                ? fetchRawPath(owner, repo, readmes[0])
+                : fetchReadmeMarkdown(owner, repo));
         });
 
         return btn;
@@ -332,12 +566,15 @@
         }
     }
 
-    // Debounced re-insert driven by the SPA mutation observer.
+    // Debounced work driven by the SPA mutation observer: insert the buttons when
+    // they're missing, or refresh the README caret as the file list streams in.
     let insertTimeout = null;
     function debouncedInsert() {
-        if (document.getElementById(CONTAINER_ID)) return;
         if (insertTimeout) clearTimeout(insertTimeout);
-        insertTimeout = setTimeout(insertButton, 50);
+        insertTimeout = setTimeout(() => {
+            if (document.getElementById(CONTAINER_ID)) refreshReadmeAffordance();
+            else insertButton();
+        }, 50);
     }
 
     if (document.readyState === 'loading') {

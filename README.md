@@ -18,7 +18,7 @@ A Tampermonkey/Greasemonkey userscript that adds two native-styled buttons to Gi
 ## Features
 
 - Two buttons styled with GitHub's own [Primer](https://primer.style/) design tokens, so they match the active theme (light / dark / dimmed) and sit natively beside Watch / Fork / Star.
-- **Copy README** resolves the README via GitHub's REST API (`/repos/{owner}/{repo}/readme`), so it finds the file no matter its name, casing, folder, or default branch — and copies raw Markdown, not rendered HTML. Shows inline **Copied** / **No README** / **Failed** feedback.
+- **Copy README** fetches the raw file from `raw.githubusercontent.com` (a CDN with no API rate limit) — it uses the exact README link on the page when available, then falls back to common filenames at the `HEAD` ref, so it resolves the right file regardless of name, casing, or default branch (`main`/`master`) and copies raw Markdown, not rendered HTML. Shows inline **Copied** / **No README** / **Failed** feedback.
 - Runs on repository pages only — user/org profiles and GitHub app routes (settings, notifications, explore, …) are excluded.
 - Handles GitHub's SPA (Turbo/PJAX) navigation — the buttons persist and re-insert across page changes.
 
@@ -36,9 +36,7 @@ A Tampermonkey/Greasemonkey userscript that adds two native-styled buttons to Gi
 1. Resolves the current page to an `{owner, repo}` pair, bailing on non-repo routes.
 2. Injects Primer-tokenized styles and finds the best anchor point (classic `pagehead-actions`, the React repo-title header, or the code-view breadcrumb).
 3. **Gitingest** links to `gitingest.com/{owner}/{repo}`.
-4. **Copy README** fetches raw Markdown from the GitHub API and writes it to the clipboard.
-
-> **Note:** the unauthenticated GitHub API allows 60 requests/hour per IP; a very heavy day of copying could briefly hit that limit (surfaced as **Failed**).
+4. **Copy README** resolves the raw README from `raw.githubusercontent.com` — the exact path shown on the page if available, otherwise common filenames at the `HEAD` ref — and writes the Markdown to the clipboard.
 
 ## Credits
 
